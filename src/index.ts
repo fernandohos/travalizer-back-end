@@ -10,6 +10,7 @@ connectDb();
 
 const app = express();
 
+app.use(express.json());
 app.use(authRouter);
 
 mongoose.connection.once("open", () => {
