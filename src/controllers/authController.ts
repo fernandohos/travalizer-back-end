@@ -9,7 +9,7 @@ async function register(req: Request, res: Response) {
   const { name, email, password } = req.body;
 
   // validate inputs
-  if (!name || !email || !password) {
+  if (validateEmptyFields({ name, email, password })) {
     res.status(400).json({ message: "All inputs is required!" });
     return;
   }
@@ -70,6 +70,72 @@ async function register(req: Request, res: Response) {
   return createdUser;
 }
 
-function login(req: Request, res: Response) {}
+async function login(req: Request, res: Response) {
+  const { email, password } = req.body;
+
+  // validate inputs
+  if (validateEmptyFields({ email, password })) {
+    res.status(400).json({ message: "All inputs is required!" });
+    return;
+  }
+
+  if (!validateEmail(email)) {
+    res.status(400).json({ message: "Invalid email type!" });
+    return;
+  }
+
+  if (password.length < 6) {
+    res
+      .status(400)
+      .json({ message: "Password must have at least 6 characters!" });
+    return;
+  }
+
+  // validate if user exists
+  const user = await userModel.getUserByEmail(email.toLowerCase());
+
+  if (!user) {
+    res.status(401).json({ message: "Invalid credentials!" });
+    return;
+  }
+
+  try {
+    // compare password
+    if (user.password) {
+      const isPasswordEqual = bcrypt.compareSync(password, user.password);
+
+      if (!isPasswordEqual) {
+        res.status(401).json({ message: "Invalid credentials!" });
+        return;
+      }
+
+      //create token
+      if (!process.env.JWT_KEY) {
+        res.status(500).json({ message: "Internal Server Error!" });
+        throw new Error("JWT_KEY missing from environment variables!");
+      } else {
+        const token = jwt.sign(
+          {
+            name: user.name,
+            email: email.toLowerCase(),
+            password: user.password,
+          },
+          process.env.JWT_KEY,
+          {
+            expiresIn: "2h",
+          }
+        );
+
+        res.status(200).json({ token });
+      }
+    } else {
+      res.status(500).json({ message: "Internal Server Error" });
+      return;
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Internal Server Error" });
+    console.log(err);
+  }
+}
 
 export default { register, login };
